@@ -2,14 +2,47 @@ defmodule Anarchist.Endpoint do
   use Slack
   require Logger
 
+  @moduledoc """
+  This module provides the main Slack RTM endpoint.
+
+  The endpoint listens for commands on all channels its API ky has been
+  invited to, however it will only output to the channel specified by the
+  `@channel` module attribute.
+  """
+
   @channel "#random"
 
-  # handle connect
   def handle_connect(slack) do
     Logger.info "connected :: as #{slack.me.name}"
   end
 
-  # handle messages
+  @doc """
+  Handles any events w/ type `message` from the Slack RTM API.
+
+  Messages which start with a command prefix are handled accordingly
+  by parsing the command and dispatching it to the appropriate server
+  module in a synchronous fashion.
+
+  The following commands are supported:
+
+  ## Misc
+
+  ```
+  !help          :: prints the bots usage information to the channel
+  !soup          :: sends a bowl of soup to this user
+  !soup <target> :: sends a bowl of soup to target user
+  <ALL CAPS>     :: stores this message in the bot's shout DB
+  ```
+
+  ## Polling
+
+  ```
+  !poll  <prompt> :: sets this user's poll prompt
+  !polla <prompt> :: adds an answer-prompt to the user's poll
+  !pollr          :: runs the user's poll
+  !polle          :: stops the user's poll
+  ```
+  """
   def handle_message(message = %{type: "message"}, slack) do
     case message.text do
       "!help" ->
@@ -49,7 +82,7 @@ defmodule Anarchist.Endpoint do
       # setup a new prompt
       "!poll " <> prompt ->
         from = Slack.Lookups.lookup_user_name(message.user, slack)
-        
+
         Logger.debug "open poll for user :: #{from} :: #{prompt}"
         GenServer.call Poller, {:open, from, prompt}
 
