@@ -173,8 +173,8 @@ defmodule Anarchist.Endpoint do
   def process_text(text, slack) do
     if (not is_nil(text) and String.upcase(text) == text) do
       Logger.debug "user shouted at me ... [#{text}]"
-      random = GenServer.call(Shouter, :random)
-      store  = GenServer.call(Shouter, {:add, text})
+      random  = GenServer.call(Shouter, :random)
+      _store  = GenServer.call(Shouter, {:add, text})
 
       send_message(random, @channel, slack)
     end

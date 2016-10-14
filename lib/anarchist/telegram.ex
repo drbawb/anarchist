@@ -19,13 +19,14 @@ defmodule Anarchist.Telegram do
   ```
   !help      :: prints this message
   !catfact   :: prints a random cat fact
+  !trump     :: print Trump's inanity
   <ALL CAPS> :: teaches me about emotions
   ```
 
   Feel free to give them a try!
   """
 
-  def start_link(opts \\ []) do
+  def start_link(_opts \\ []) do
     Logger.info "telegram starting up ..."
     Logger.info "i am the walrus: #{inspect Yocingo.get_me}"
 
@@ -51,7 +52,7 @@ defmodule Anarchist.Telegram do
       process_updates(updates)
       main_loop(last_update_from(updates) + 1)
     rescue
-      e in MatchError -> main_loop(last_update)
+      MatchError -> main_loop(last_update)
     end
   end
 
@@ -86,6 +87,10 @@ defmodule Anarchist.Telegram do
         factoid = GenServer.call CatFacts, :fact
         Yocingo.send_message(room_id, factoid)
 
+      "!trump" ->
+        factoid = GenServer.call CatFacts, :trump
+        Yocingo.send_message(room_id, factoid)
+
       "!" <> _cmd ->
         Yocingo.send_message(room_id, @misunderstood)
 
@@ -99,8 +104,8 @@ defmodule Anarchist.Telegram do
   defp process_text(room_id, text) do
     if String.upcase(text) == text do
       Logger.debug "user shouted at me ..."
-      random = GenServer.call(Shouter, :random)
-      store  = GenServer.call(Shouter, {:add, text})
+      random  = GenServer.call(Shouter, :random)
+      _store  = GenServer.call(Shouter, {:add, text})
 
       Yocingo.send_message(room_id, random)
     end
