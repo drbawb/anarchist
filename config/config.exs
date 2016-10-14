@@ -2,8 +2,10 @@
 # and its dependencies with the aid of the Mix.Config module.
 use Mix.Config
 
-config :anarchist, Anarchist.Endpoint,
+config :anarchist, Anarchist.Endpoint, 
   token: System.get_env("SLACK_TOKEN")
+
+config :yocingo, :token, System.get_env("TELEGRAM_TOKEN")
 
 # This configuration is loaded before any dependency and is restricted
 # to this project. If another project depends on this project, this
