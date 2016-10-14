@@ -44,7 +44,7 @@ defmodule Anarchist.Endpoint do
   ```
   """
   def handle_message(message = %{type: "message"}, slack) do
-    case message.text do
+    case Map.get(message, :text) do
       "!help" ->
         from = Slack.Lookups.lookup_user_name(message.user, slack)
 
@@ -171,8 +171,8 @@ defmodule Anarchist.Endpoint do
   def handle_info(_, _), do: :ok
 
   def process_text(text, slack) do
-    if (String.upcase(text) == text) do
-      Logger.debug "user shouted at me ..."
+    if (not is_nil(text) and String.upcase(text) == text) do
+      Logger.debug "user shouted at me ... [#{text}]"
       random = GenServer.call(Shouter, :random)
       store  = GenServer.call(Shouter, {:add, text})
 

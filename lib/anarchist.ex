@@ -21,6 +21,7 @@ defmodule Anarchist do
       worker(Anarchist.Poller,   [[name: Poller]]),    # conducts polls (per user)
       worker(Anarchist.Shouter,  [[name: Shouter]]),   # remembers shouts ...
       worker(Anarchist.Telegram, [[name: Telegram]]),  # talks to sandwich!!!
+      worker(Anarchist.Backup,   []),                  # backup the shout DB, etc.
       worker(Anarchist.Endpoint, [slack_token]),       # listens to slack RTM
     ]
 

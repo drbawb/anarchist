@@ -5,6 +5,22 @@ defmodule Anarchist.Telegram do
   The Telegram Bot API endpoint.
   """
 
+  # help blocks 
+  @misunderstood "I'm sorry, I don't recognize that command, do you need `!help`?"
+  @help_text """
+  I'm anarchist, the lemon chicken chatbot.
+
+  I know a few commands, such as:
+
+  ```
+  !help      :: prints this message
+  !catfact   :: prints a random cat fact
+  <ALL CAPS> :: teaches me about emotions
+  ```
+
+  Feel free to give them a try!
+  """
+
   def start_link(opts \\ []) do
     Logger.info "telegram starting up ..."
     Logger.info "i am the walrus: #{inspect Yocingo.get_me}"
@@ -13,9 +29,19 @@ defmodule Anarchist.Telegram do
     {:ok, pid}
   end
 
+  # TODO: gets stuck in a loop of errors if it blows up processing a message.
+  #       since the loop gets terminated before we can bump the update ID 
+  #       we end up processing the same b0rked message continuously until 
+  #       the supervisor explodes.
+  #
+  @doc """
+  Long polls for messages continuously.
+
+  Each iteration of this function is started w/ the
+  highest update-id the loop has seen so far, the telegram
+  API will only send us "unconfirmed messages" >= that ID.
+  """
   def main_loop(last_update) do
-    
-  # TODO: yocingo shouldn't match error, but it does !!!
     try do
       updates = Yocingo.get_updates(last_update)
       process_updates(updates)
@@ -23,7 +49,6 @@ defmodule Anarchist.Telegram do
     rescue
       e in MatchError -> main_loop(last_update)
     end
-
   end
 
   # dispatches updates to handlers
@@ -51,9 +76,15 @@ defmodule Anarchist.Telegram do
   # dispatch an incoming chat message to appropriate bot module
   defp dispatch(room_id, text) do
     case text do
+      "!help" ->
+        Yocingo.send_message(room_id, @help_text)
+
       "!catfact" ->
         factoid = GenServer.call CatFacts, :fact
         Yocingo.send_message(room_id, factoid)
+
+      "!" <> _cmd ->
+        Yocingo.send_message(room_id, @misunderstood)
 
       text when not is_nil(text) -> process_text(room_id, text)
       _ -> Logger.warn "bot could not dispatch message"

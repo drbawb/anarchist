@@ -34,6 +34,6 @@ defmodule Anarchist.Mixfile do
      {:httpoison, "~> 0.9"},
      {:slack, "~> 0.7"},
      {:websocket_client, github: "jeremyong/websocket_client"},
-     {:yocingo, "~> 0.0"}]
+     {:yocingo, github: "drbawb/yocingo", branch: "dev/parse-mode"}]
   end
 end
