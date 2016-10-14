@@ -67,6 +67,9 @@ defmodule Anarchist.Endpoint do
         """
 
         send_message(help_text, @channel, slack)
+      "!catfact" ->
+        factoid = GenServer.call CatFacts, :fact
+        send_message(factoid, @channel, slack)
 
       "!soup" ->
         from = Slack.Lookups.lookup_user_name(message.user, slack)
