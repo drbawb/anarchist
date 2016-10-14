@@ -2,6 +2,8 @@ defmodule Anarchist.Shouter do
   use GenServer
   require Logger
 
+  @min_shout_length 10 # chosen arbitrarily by fair dice roll
+
   def start_link(opts \\ []) do
     init_state = %{ shouts: [] }
 
@@ -26,7 +28,11 @@ defmodule Anarchist.Shouter do
   # callbacks
 
   def handle_call({:add, shout}, _from, state) do
-    {:reply, :ok, %{state | shouts: [shout | state.shouts]}}
+    if valid_shout(shout) do
+      {:reply, :ok, %{state | shouts: [shout | state.shouts]}}
+    else
+      {:reply, {:error, "invalid shout, nil or not utf8?"}, state}
+    end
   end
 
   def handle_call(:random, _from, state) do
@@ -51,5 +57,12 @@ defmodule Anarchist.Shouter do
     io_result = File.write(path, json_buf)
 
     {:reply, io_result, state}
+  end
+
+  defp valid_shout(text) do
+    is_binary(text)
+    and String.valid?(text)
+    and String.upcase(text) == text
+    and String.length(text) >= @min_shout_length
   end
 end
