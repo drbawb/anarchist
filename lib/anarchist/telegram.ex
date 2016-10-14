@@ -3,6 +3,10 @@ defmodule Anarchist.Telegram do
 
   @moduledoc """
   The Telegram Bot API endpoint.
+
+  Uses HTTP long polling to receive messages from Telegram
+  users and rooms, and responds to them based on a list of
+  known dispatch commands.
   """
 
   # help blocks 
@@ -54,7 +58,6 @@ defmodule Anarchist.Telegram do
   # dispatches updates to handlers
   defp process_updates(updates) do
     results = updates["result"]
-    Logger.info "got #{Enum.count results} updates"
 
     for update <- results do
       message   = update["message"]

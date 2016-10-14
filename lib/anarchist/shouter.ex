@@ -5,7 +5,7 @@ defmodule Anarchist.Shouter do
   @min_shout_length 10 # chosen arbitrarily by fair dice roll
 
   def start_link(opts \\ []) do
-    init_state = %{ shouts: [] }
+    init_state = %{ shouts: MapSet.new }
 
     GenServer.start_link(__MODULE__, init_state, opts)
   end
@@ -29,7 +29,7 @@ defmodule Anarchist.Shouter do
 
   def handle_call({:add, shout}, _from, state) do
     if valid_shout(shout) do
-      {:reply, :ok, %{state | shouts: [shout | state.shouts]}}
+      {:reply, :ok, %{state | shouts: MapSet.put(state.shouts, shout) }}
     else
       {:reply, {:error, "invalid shout, nil or not utf8?"}, state}
     end
@@ -46,7 +46,7 @@ defmodule Anarchist.Shouter do
 
   def handle_call({:load, path}, _from, state) do
     Logger.debug "loading shout database :: #{inspect path}"
-    shouts = path |> File.read! |> Poison.decode!
+    shouts = path |> File.read! |> Poison.decode! |> MapSet.new
 
     {:reply, :ok, %{state | shouts: shouts}}
   end
