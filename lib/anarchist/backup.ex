@@ -14,7 +14,9 @@ defmodule Anarchist.Backup do
   end
 
   def init(state) do
+    GenServer.call Shouter, {:load, "db/shouts-auto.txt"}
     schedule_work()
+
     {:ok, state}
   end
 

@@ -6,7 +6,6 @@ defmodule Anarchist.Shouter do
 
   def start_link(opts \\ []) do
     init_state = %{ shouts: MapSet.new }
-
     GenServer.start_link(__MODULE__, init_state, opts)
   end
 

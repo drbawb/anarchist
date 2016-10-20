@@ -17,12 +17,15 @@ defmodule Anarchist do
     slack_token = Application.get_env(:anarchist, Anarchist.Endpoint)[:token]
 
     children = [
-      worker(Anarchist.CatFacts, [[name: CatFacts]]),  # fetches random cat fact 
-      worker(Anarchist.Poller,   [[name: Poller]]),    # conducts polls (per user)
-      worker(Anarchist.Shouter,  [[name: Shouter]]),   # remembers shouts ...
-      worker(Anarchist.Telegram, [[name: Telegram]]),  # talks to sandwich!!!
-      worker(Anarchist.Backup,   []),                  # backup the shout DB, etc.
-      worker(Anarchist.Endpoint, [slack_token]),       # listens to slack RTM
+      worker(Anarchist.CatFacts, [[name: CatFacts]]), # fetches random cat fact 
+      worker(Anarchist.Dice,     [[name: Dice]]),     # rolls dice angrily
+      worker(Anarchist.Poller,   [[name: Poller]]),   # conducts polls (per user)
+      worker(Anarchist.Shouter,  [[name: Shouter]]),  # remembers shouts ...
+      worker(Anarchist.Backup,   []),                 # backup the shout DB, etc.
+      worker(Anarchist.Endpoint, [slack_token]),      # listens to slack RTM
+
+      # manage long polling for the sandwich
+      supervisor(Anarchist.Telegram, [], restart: :permanent)
     ]
 
     opts = [strategy: :one_for_one, name: Anarchist.Supervisor]

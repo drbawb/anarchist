@@ -45,30 +45,68 @@ defmodule Anarchist.Endpoint do
   """
   def handle_message(message = %{type: "message"}, slack) do
     case Map.get(message, :text) do
+      "!test" ->
+        channel_id = Slack.Lookups.lookup_channel_id(@channel, slack)
+        msg_json = %{
+          "type" => "message",
+          "channel" => channel_id,
+          "text" => "Would you like to play a game?",
+          "attachments" => [
+            %{
+              "text" => "Choose a game to play",
+              "fallback" => "You are unable to choose a game",
+              "callback_id" => "wopr_game",
+              "color" => "#3AA3E3",
+              "attachment_type" => "default",
+              "actions" => [
+                %{"name" => "chess", "text" => "Chess", "type" => "button"}
+              ]
+            }]
+          }
+
+          send_raw(Poison.encode!(msg_json), slack)
+
       "!help" ->
         from = Slack.Lookups.lookup_user_name(message.user, slack)
 
         help_text = """
-        Hi #{from}, I'm @anarchist, the chaos-bot.
+        Hi #{from}, I'm @anarchist the chaos-bot.
 
-        I conduct simple multiple choice polls on your behalf.
-        I log all responses to your poll in my VAST DATABANKS and
-        I can print out a summary of your poll at any time.
-
-        At the moment I can only run one poll per user account, though
-        I can conduct multiple polls simultaneously.
+        I can run online polls, spew random facts, and I like shouting at people.
 
         Here is a list of commands I understand:
+        
+        ```
+        !help      :: prints this message
+        !catfact   :: prints a random cat fact
+        !chuck     :: chuck norris facts
+        !ron       :: wisdom of ron swanson
+        !trump     :: print Trump's inanity
+        <ALL CAPS> :: teaches me about emotions
 
-        - `!poll <prompt>`:  (re)start your poll with the question provided
-        - `!polla <prompt>`: add a valid response to your current poll
-        - `!pollr`:          starts your poll and tells users how to respond
-        - `!polle`:          prints out the current summary of responses to your poll
+        !poll  <prompt> :: (re)start your poll with the question provided
+        !polla <prompt> :: add a valid response to your current poll
+        !pollr          :: starts your poll and tells users how to respond
+        !polle          :: prints out the current summary of responses to your poll
+        ```
+
         """
 
         send_message(help_text, @channel, slack)
       "!catfact" ->
         factoid = GenServer.call CatFacts, :fact
+        send_message(factoid, @channel, slack)
+
+      "!chuck" ->
+        factoid = GenServer.call CatFacts, :chuck
+        send_message(factoid, @channel, slack)
+
+      "!ron" ->
+        factoid = GenServer.call CatFacts, :ron
+        send_message(factoid, @channel, slack)
+
+      "!trump" ->
+        factoid = GenServer.call CatFacts, :trump
         send_message(factoid, @channel, slack)
 
       "!soup" ->
