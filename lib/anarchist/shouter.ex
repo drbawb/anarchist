@@ -58,10 +58,13 @@ defmodule Anarchist.Shouter do
     {:reply, io_result, state}
   end
 
-  defp valid_shout(text) do
+  defp canonical(text), do: String.replace(text, ~r/[^a-zA-Z]/, "")
+
+  def valid_shout(text, ignore_length \\ false) do
     is_binary(text)
     and String.valid?(text)
-    and String.upcase(text) == text
-    and String.length(text) >= @min_shout_length
+    and canonical(text) != ""
+    and String.upcase(canonical(text)) == canonical(text)
+    and ((String.length(text) >= @min_shout_length) or ignore_length)
   end
 end

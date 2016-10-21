@@ -59,6 +59,7 @@ defmodule Anarchist.TGServer do
   !catfact       :: prints a random cat fact
   !cave          :: prints a random cave johnson fact
   !chuck         :: chuck norris facts
+  !roll XdY      :: roll some dice!
   !ron           :: wisdom of ron swanson
   !trump         :: print Trump's inanity
   !weather <zip> :: fetches a weather report
@@ -147,7 +148,7 @@ defmodule Anarchist.TGServer do
 
   # stores shouts in the shout db, otherwise does nothing
   defp process_text(room_id, text) do
-    if String.upcase(text) == text do
+    if Anarchist.Shouter.valid_shout(text, true) do
       Logger.debug "user shouted at me ..."
       random  = GenServer.call(Shouter, :random)
       _store  = GenServer.call(Shouter, {:add, text})
@@ -174,7 +175,7 @@ defmodule Anarchist.TGPoller do
   def start_link(opts \\ []) do
     Logger.info "telegram poller is starting"
     Logger.info "i am the walrus :: #{inspect Yocingo.get_me}"
-    Task.start(fn -> main_loop(0) end)
+    Task.start_link(fn -> main_loop(0) end)
   end
 
   @doc """
@@ -187,7 +188,6 @@ defmodule Anarchist.TGPoller do
   This dispatches messages to the botserv and then polls again immediately.
   """
   def main_loop(last_update) do
-    Logger.info "pumping main loop #{last_update}"
     updates        = Yocingo.get_updates(last_update)
     next_update_id = last_update_from(updates) + 1
     process_updates(updates)
@@ -196,7 +196,6 @@ defmodule Anarchist.TGPoller do
 
   # dispatches updates to handlers
   defp process_updates(updates) do
-    Logger.info "process updates ..."
     results = updates["result"]
 
     for update <- results do
