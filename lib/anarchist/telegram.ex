@@ -77,7 +77,6 @@ defmodule Anarchist.TGServer do
 
   # dispatch an incoming chat message to appropriate bot module
   def handle_cast({:dispatch, room_id, text}, state) do
-    Logger.info "dispatching #{room_id} :: #{text}"
     case text do
       "!crash" -> raise "OH SHIT!!!!"
 
