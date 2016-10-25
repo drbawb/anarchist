@@ -11,12 +11,29 @@ defmodule Anarchist.CatFacts do
   @api_cave    "db/cave.txt"
   @api_cat     "https://catfacts-api.appspot.com/api"
   @api_chuck   "https://api.chucknorris.io"
-  @api_ron     "http://ron-swanson-quotes.herokuapp.com"
+  @api_ron     "https://ron-swanson-quotes.herokuapp.com"
   @api_trump   "https://api.whatdoestrumpthink.com/api"
   @api_weather "http://api.openweathermap.org/data/2.5"
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, nil, opts)
+  end
+
+  def handle_call(:sys, _from, _state) do
+    {kernel, _} = System.cmd("uname", ["-orn"])
+    {uptime, _} = System.cmd("uptime", ["-p"])
+    procs       = Process.list
+    factoid = """
+    So you *do* care!
+
+    ```
+    OS:        #{kernel |> String.trim}
+    Status:    #{uptime |> String.trim}
+    Scheduler: #{procs |> Enum.count} tasks
+    ```
+    """
+
+    {:reply, factoid, nil}
   end
 
   def handle_call(:cave, _from, _state) do

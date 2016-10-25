@@ -76,9 +76,13 @@ defmodule Anarchist.TGServer do
   end
 
   # dispatch an incoming chat message to appropriate bot module
-  def handle_cast({:dispatch, room_id, text}, state) do
+  def handle_cast({:dispatch, room_id, text, msg}, state) do
     case text do
       "!crash" -> raise "OH SHIT!!!!"
+
+      "!sys" ->
+        factoid = GenServer.call CatFacts, :sys
+        Logger.debug "#{inspect Yocingo.send_message(room_id, factoid)}"
 
       "!help" ->
         Yocingo.send_message(room_id, @help_text)
@@ -132,13 +136,34 @@ defmodule Anarchist.TGServer do
 
         Yocingo.send_message(room_id, reply)
 
+      "!qcount" ->
+        num_q = GenServer.call(Trivia, :count)
+        Yocingo.send_message(room_id, "loaded #{num_q} questions")
+
+      "!qstart" ->
+        Logger.debug "requesting trvia for :: #{inspect room_id}"
+        GenServer.call Trivia, {:start, room_id, fn(msg) ->
+          case msg do
+            {:say, text} -> 
+              Logger.debug "sending trivia message #{text} => #{room_id}"
+              Yocingo.send_message(room_id, text)
+
+            _ -> Logger.debug "unhandled trivia callback :: #{inspect msg}"
+          end
+        end}
+
+      "!qstop" ->
+        Logger.debug "stopping trivia for :: #{inspect room_id}"
+        GenServer.call Trivia, {:stop, room_id}
+        
+
       "!" <> _cmd ->
         Yocingo.send_message(room_id, @misunderstood)
 
       "Kimi no namae wa?" ->
         Yocingo.send_message(room_id, @megumeme)
 
-      text when not is_nil(text) -> process_text(room_id, text)
+      text when not is_nil(text) -> process_text(room_id, text, msg)
       _ -> Logger.warn "bot could not dispatch message"
     end
 
@@ -146,8 +171,10 @@ defmodule Anarchist.TGServer do
   end
 
   # stores shouts in the shout db, otherwise does nothing
-  defp process_text(room_id, text) do
-    if Anarchist.Shouter.valid_shout(text, true) do
+  defp process_text(room_id, text, msg) do
+    GenServer.call Trivia, {:response, room_id, msg["chat"]["username"], text}
+
+    if Anarchist.Shouter.valid_shout(text) do
       Logger.debug "user shouted at me ..."
       random  = GenServer.call(Shouter, :random)
       _store  = GenServer.call(Shouter, {:add, text})
@@ -204,7 +231,7 @@ defmodule Anarchist.TGPoller do
 
       Logger.debug "telegram :: #{inspect message}"
       Logger.debug "telegram :: #{room_id} :: #{inspect text}"
-      GenServer.cast(TGServ, {:dispatch, room_id, text})
+      GenServer.cast(TGServ, {:dispatch, room_id, text, message})
     end
   end
 

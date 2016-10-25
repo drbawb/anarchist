@@ -1,13 +1,11 @@
 defmodule Anarchist.Backup do
   use GenServer
-  require Logger
 
   @moduledoc "This task periodically dumps various module DBs to the disk."
 
   @work_timer 5 * 60 * 1000
   @tasks [
-    [Shouter, {:persist, "db/shouts-auto.txt"}]
-  ]
+    [Shouter, {:persist, "db/shouts-auto.txt"}]]
 
   def start_link do
     GenServer.start_link(__MODULE__, %{})
@@ -16,19 +14,13 @@ defmodule Anarchist.Backup do
   def init(state) do
     GenServer.call Shouter, {:load, "db/shouts-auto.txt"}
     schedule_work()
-
     {:ok, state}
   end
 
   # does some work and goes back to sleep ...
   def handle_info(:work, state) do
-    Logger.info "performing backups..."
-
-    for [mod, task] <- @tasks do
-      GenServer.call(mod, task)
-    end
-
     schedule_work()
+    for [mod, task] <- @tasks, do: GenServer.call(mod, task)
     {:noreply, state}
   end
 
