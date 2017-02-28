@@ -11,7 +11,7 @@ defmodule Anarchist.Dice do
     num  = String.to_integer(num)
     type = String.to_integer(type)
 
-    if type > 100 or num > 50 do
+    if type > 500 or num > 50 do
       {:reply, "Oh fuck off, I'm not rolling that many dice.", nil}
     else
       rolls = for _die <- 1..num, do: :rand.uniform(type)

@@ -3,7 +3,7 @@ defmodule Anarchist.Telegram do
   The anarchist telegram endpoint consists of two processes:
 
   - an OTP gen server which processes messages and tries to reply to them
-  
+
   - an HTTP long poller which receives and confirms messages from telegram's
     bot API endpoint
 
@@ -15,7 +15,7 @@ defmodule Anarchist.Telegram do
     import Supervisor.Spec, warn: false
 
     children = [
-      worker(Anarchist.TGServer, [[name: TGServ]]), 
+      worker(Anarchist.TGServer, [[name: TGServ]]),
       worker(Anarchist.TGPoller, [[name: TGPoll]]),
     ]
 
@@ -38,7 +38,7 @@ defmodule Anarchist.TGServer do
 
   # meme blocks
   @megumeme """
-  WAGA NA WA MEGUMIN.  
+  WAGA NA WA MEGUMIN.
   My calling is that of an arch wizard, one who controls explosion magic, the strongest of all offensive magic!
 
   I desire for my torrent of power a destructive force: a destructive force without equal! Return all creation to cinders, and come from the abyss!
@@ -48,8 +48,33 @@ defmodule Anarchist.TGServer do
   **EXPLOSION!**
   """
 
-  # help blocks 
+  # help blocks
   @misunderstood "I'm sorry, I don't recognize that command, do you need `!help`?"
+  @card_text """
+  WOOT. Somebody wants to play Cards Against Humanity!
+  To join the game type: `/cards join` in this channel.
+
+  Once the game begins I will select a czar at random.
+  After that we will rotate through the players in order
+  until someone reaches seven points, or the game crashes
+  because @kotokun is a shit coder.
+
+  Game play will proceed as follows:
+
+  - I will deal cards to ensure each player has 10 cards
+  - I will announce the black card in the public chat
+  - All non-czar players will receive a private message
+    which repeats the prompt, and displays your hand of cards
+    which you may choose from.
+
+  Once all players have chosen a card: the choices will be
+  revealed in the group chat, and the czar will pick the
+  most hilarious one at their leisure.
+
+  At this point a new czar will be selected and the game
+  will proceed to the top of the round.
+  """
+
   @help_text """
   I'm anarchist, the lemon chicken chatbot.
   I know a few commands, such as:
@@ -72,13 +97,136 @@ defmodule Anarchist.TGServer do
   # start the telegram bot serv
   def start_link(opts \\ []) do
     Logger.info "telegram bot serv is starting ..."
-    GenServer.start_link(__MODULE__, nil, opts)
+    {:ok, cah_lobbies} = Agent.start(fn -> %{} end, [])
+    {:ok, cah_players} = Agent.start(fn -> %{} end, [])
+    GenServer.start_link(__MODULE__, %{lobbies: cah_lobbies, players: cah_players}, opts)
+  end
+
+  # dispatch callback buttons
+  def handle_cast({:callback, uuid, from, body}, state) do
+
+    case body do
+      "cah.czar." <> winner ->
+        winner  = String.to_integer(winner)
+        user_id = from["id"]
+
+        Agent.get(state.players, fn el ->
+          room_id     = Map.get(el, user_id)
+          lobby_pid   = Agent.get(state.lobbies, fn el -> Map.get(el, room_id) end)
+          {:ok, resp} = GenServer.call(lobby_pid, {:czar, user_id, winner})
+        end)
+
+      "cah.pick." <> idx ->
+        Logger.debug "user #{inspect from} chose cah card ##{inspect idx}"
+
+        Agent.get(state.players, fn el ->
+          user_id   = from["id"]
+          card_idx  = String.to_integer(idx)
+
+          # find lobby this pick belongs to
+          room_id     = Map.get(el, user_id)
+          lobby_pid   = Agent.get(state.lobbies, fn el -> Map.get(el, room_id) end)
+          {:ok, resp} = GenServer.call(lobby_pid, {:pick, user_id, card_idx})
+
+          TeleFrag.ack(uuid, resp)
+        end)
+
+
+      _ ->
+        Logger.debug "unhandled callback :: #{inspect body}"
+        TeleFrag.ack(uuid, "cool beans.")
+    end
+
+    {:noreply, state}
   end
 
   # dispatch an incoming chat message to appropriate bot module
   def handle_cast({:dispatch, room_id, text, msg}, state) do
     case text do
       "!crash" -> raise "OH SHIT!!!!"
+
+      "/cards" ->
+        Agent.update(state.lobbies, fn el ->
+          {:ok, lobby_pid} = CardRoom.start_link([])
+          Yocingo.send_message(room_id, @card_text)
+          Map.put(el, room_id, lobby_pid)
+        end)
+
+      "/cards join" ->
+        Logger.debug "#{inspect msg} wants to join"
+        Agent.get(state.lobbies, fn el ->
+          lobby_pid = Map.get(el, room_id)
+          user_id   = msg["from"]["id"]
+          username  = msg["from"]["first_name"]
+
+          {:ok, players} = GenServer.call(lobby_pid, {:join, user_id, username})
+          players = players
+          |> Enum.map(fn {_k,el} -> el.name end)
+          |> Enum.join(", ")
+
+          Agent.update(state.players, fn el ->
+            Map.put(el, user_id, room_id)
+          end)
+
+          msg = """
+          #{username} has joined your struggle!
+          Now playing: #{players}
+          """
+
+          Yocingo.send_message(room_id, msg)
+        end)
+
+      "/cards just do it" ->
+        runmod = fn msg ->
+          case msg do
+            {:say, text}      -> TeleFrag.send(room_id, text)
+            {:priv, id, text} -> TeleFrag.send(id, text)
+
+            {:choose, text, verb, buttons} ->
+              buttons = for row <- buttons do
+                for col <- row do
+                  id   = col[:id]
+                  text = col[:text]
+                  [callback_data: "cah.#{verb}.#{id}", text: text]
+                end
+              end
+
+              # send reply
+              reply_k = JSX.encode!([inline_keyboard: buttons])
+              TeleFrag.send(room_id, text, [reply_markup: reply_k])
+
+            {:choose, id, text, verb, buttons} ->
+              # format buttons for telegram bot API
+              buttons = for row <- buttons do
+                for col <- row do
+                  id   = col[:id]
+                  text = col[:text]
+                  [callback_data: "cah.#{verb}.#{id}", text: text]
+                end
+              end
+
+              # send reply
+              reply_k = JSX.encode!([inline_keyboard: buttons])
+              TeleFrag.send(id, text, [reply_markup: reply_k])
+
+            _ -> "unhandled cah callback"
+          end
+        end
+
+        Agent.get(state.lobbies, fn el ->
+          lobby_pid = Map.get(el, room_id)
+          case GenServer.call(lobby_pid, {:start, runmod}) do
+            :ok -> Yocingo.send_message(room_id, "here we go!")
+            {:error, msg} -> Yocingo.send_message(room_id, msg)
+          end
+        end)
+
+      "/cards kill" ->
+        Agent.get(state.lobbies, fn el ->
+          lobby_pid = Map.get(el, room_id)
+          GenServer.call(lobby_pid, :score)
+          GenServer.stop(lobby_pid)
+        end)
 
       "!sys" ->
         factoid = GenServer.call CatFacts, :sys
@@ -107,7 +255,7 @@ defmodule Anarchist.TGServer do
         unless is_nil(num) or is_nil(type) do
           Logger.info "rolling #{num} of #{type}"
           dicerep = GenServer.call Dice, {:roll, num, type}
-          
+         
           Logger.info "got rep: #{dicerep}"
           Yocingo.send_message(room_id, dicerep)
         end
@@ -144,7 +292,7 @@ defmodule Anarchist.TGServer do
         Logger.debug "requesting trvia for :: #{inspect room_id}"
         GenServer.call Trivia, {:start, room_id, fn(msg) ->
           case msg do
-            {:say, text} -> 
+            {:say, text} ->
               Logger.debug "sending trivia message #{text} => #{room_id}"
               Yocingo.send_message(room_id, text)
 
@@ -155,10 +303,12 @@ defmodule Anarchist.TGServer do
       "!qstop" ->
         Logger.debug "stopping trivia for :: #{inspect room_id}"
         GenServer.call Trivia, {:stop, room_id}
-        
 
-      "!" <> _cmd ->
-        Yocingo.send_message(room_id, @misunderstood)
+
+      "!" <> cmd ->
+        if String.match?(cmd, ~r/\w+/) do
+          Yocingo.send_message(room_id, @misunderstood)
+        end
 
       "Kimi no namae wa?" ->
         Yocingo.send_message(room_id, @megumeme)
@@ -179,7 +329,13 @@ defmodule Anarchist.TGServer do
       random  = GenServer.call(Shouter, :random)
       _store  = GenServer.call(Shouter, {:add, text})
 
-      Yocingo.send_message(room_id, random)
+      cond do
+        String.contains?(random, "GROPING") -> 
+          Yocingo.send_photo(room_id, "db/whole-hearted-groping.jpg", random)
+
+        true -> Yocingo.send_message(room_id, random)
+      end
+
     end
   end
 end
@@ -225,18 +381,34 @@ defmodule Anarchist.TGPoller do
     results = updates["result"]
 
     for update <- results do
-      message   = update["message"]
-      room_id   = message["chat"]["id"]
-      text      = message["text"]
+      callback = update["callback_query"]
+      message  = update["message"]
 
-      Logger.debug "telegram :: #{inspect message}"
-      Logger.debug "telegram :: #{room_id} :: #{inspect text}"
-      GenServer.cast(TGServ, {:dispatch, room_id, text, message})
+      cond do
+        not is_nil(message) ->
+          room_id   = message["chat"]["id"]
+          msg_id    = message["message_id"]
+          text      = message["text"]
+
+          Logger.debug "telegram :: #{room_id} :[#{msg_id}]: #{inspect text}"
+          GenServer.cast(TGServ, {:dispatch, room_id, text, message})
+
+        not is_nil(callback) ->
+          uuid = callback["id"]
+          user = callback["from"]
+          data = callback["data"]
+
+          Logger.debug "telegram :: #{inspect callback}"
+          GenServer.cast(TGServ, {:callback, uuid, user, data})
+
+        true -> Logger.warn "unknown API message :: #{inspect update}"
+      end
     end
   end
 
   # grabs the largsest update id we've seen in this batch
   defp last_update_from(updates) do
+    # Logger.debug "updates in case it crashes :: #{inspect updates}"
     results = updates["result"]
     List.foldl(results, 0, fn el,acc -> max(acc, el["update_id"]) end)
   end
