@@ -25,8 +25,14 @@ defmodule Anarchist.Telegram do
 end
 
 defmodule Anarchist.TGServer do
+  alias Anarchist.Repo
+  alias Anarchist.Entry
+  alias Anarchist.EntryTag
+  alias Anarchist.Tag
+
   use GenServer
   require Logger
+  import Ecto.Query
 
   @moduledoc """
   The Telegram Bot Server.
@@ -36,10 +42,12 @@ defmodule Anarchist.TGServer do
   affect the processing of unrelated commands.
   """
 
+  # config blocks
+  @admin_id 211325690
+
   # meme blocks
   @megumeme """
-  WAGA NA WA MEGUMIN.
-  My calling is that of an arch wizard, one who controls explosion magic, the strongest of all offensive magic!
+  WAGA NA WA MEGUMIN.  My calling is that of an arch wizard, one who controls explosion magic, the strongest of all offensive magic!
 
   I desire for my torrent of power a destructive force: a destructive force without equal! Return all creation to cinders, and come from the abyss!
 
@@ -144,6 +152,29 @@ defmodule Anarchist.TGServer do
   def handle_cast({:dispatch, room_id, text, msg}, state) do
     case text do
       "!crash" -> raise "OH SHIT!!!!"
+      "!am-i-naked" ->
+        case msg["from"]["id"] == @admin_id do
+          true  -> Yocingo.send_message(room_id, "Yes supreme commander bawble, it does indeed appear you've forgotten your pants again.") 
+          false -> Yocingo.send_message(room_id, "NO! I'm naked, so I'm the boss!")
+        end
+
+      "!aqua " <> tagspec ->
+        [schema, tag] = String.split(tagspec, ":", parts: 2)
+
+        case msg["from"]["id"] == @admin_id do
+          true  -> Yocingo.send_photo(room_id, random_entry_for_tag(schema, tag))
+          false -> Yocingo.send_message(room_id, "Uhh, I'm not so sure you're supposed to see *that* folder.")
+        end
+
+      "!aquah " <> digest ->
+        entry = (from e in Entry,
+          where: like(e.hash, ^("#{digest}%")))
+          |> Repo.all |> List.first
+
+        case msg["from"]["id"] == @admin_id do
+          true  -> Yocingo.send_photo(room_id, path_for_entry(entry))
+          false -> Yocingo.send_message(room_id, "Uhh, I'm not so sure you're supposed to see *that* folder.")
+        end
 
       "/cards" ->
         Agent.update(state.lobbies, fn el ->
@@ -324,19 +355,64 @@ defmodule Anarchist.TGServer do
   defp process_text(room_id, text, msg) do
     GenServer.call Trivia, {:response, room_id, msg["chat"]["username"], text}
 
+    # megumemes
+    meme_text = String.downcase(text)
+    cond do
+      String.contains?(meme_text, "aoba")      -> Yocingo.send_photo(room_id, random_entry_for_tag("character", "aoba"))
+      String.contains?(meme_text, "megumin")   -> Yocingo.send_photo(room_id, random_entry_for_tag("character", "megumin"))
+      String.contains?(meme_text, "aqua")      -> Yocingo.send_photo(room_id, random_entry_for_tag("character", "aqua"))
+      String.contains?(meme_text, "chomusuke") -> Yocingo.send_photo(room_id, random_entry_for_tag("character", "chomusuke"))
+      String.contains?(meme_text, "mitsuha")   -> Yocingo.send_photo(room_id, random_entry_for_tag("character", "mitsuha"))
+      String.contains?(meme_text, "rare pepe") -> Yocingo.send_photo(room_id, random_entry_for_tag("", "pepe"))
+      true -> Logger.info("no memes in this message")
+    end
+
     if Anarchist.Shouter.valid_shout(text) do
       Logger.debug "user shouted at me ..."
       random  = GenServer.call(Shouter, :random)
       _store  = GenServer.call(Shouter, {:add, text})
 
       cond do
-        String.contains?(random, "GROPING") -> 
+        String.contains?(random, "GROPING") ->
           Yocingo.send_photo(room_id, "db/whole-hearted-groping.jpg", random)
 
         true -> Yocingo.send_message(room_id, random)
       end
 
     end
+  end
+
+  def random_entry_for_tag(schema, name) do
+    tags = (from t in Tag,
+      where: t.schema == ^schema and t.name == ^name)
+      |> Repo.all
+
+    megumin_tag = List.first tags
+
+    mappings = (from et in EntryTag,
+      where: et.tag_id == ^megumin_tag.id)
+      |> Repo.all
+
+    mapping_entry_ids = Enum.map(mappings, fn entry_tag ->
+      entry_tag.entry_id
+    end)
+
+    entries = (from e in Entry,
+      where: e.id in ^mapping_entry_ids)
+      |> Repo.all
+
+    winner = Enum.random(entries)
+    path_for_entry(winner)
+  end
+
+  def path_for_entry(entry) do
+    ext = case entry.mime do
+      "image/jpeg" -> "jpg"
+      "image/gif"  -> "gif"
+      "image/png"  -> "png"
+    end
+
+    path = "/mnt/aqua_content_store/f#{entry.hash |> String.slice(0..1)}/#{entry.hash}.#{ext}"
   end
 end
 

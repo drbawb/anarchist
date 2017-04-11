@@ -17,6 +17,7 @@ defmodule Anarchist do
     slack_token = Application.get_env(:anarchist, Anarchist.Endpoint)[:token]
 
     children = [
+      worker(Anarchist.Repo, []),
       worker(Anarchist.CatFacts, [[name: CatFacts]]), # fetches random cat fact 
       worker(Anarchist.Dice,     [[name: Dice]]),     # rolls dice angrily
       worker(Anarchist.Poller,   [[name: Poller]]),   # conducts polls (per user)
