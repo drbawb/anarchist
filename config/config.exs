@@ -5,6 +5,15 @@ use Mix.Config
 config :anarchist, Anarchist.Endpoint, 
   token: System.get_env("SLACK_TOKEN")
 
+config :anarchist, ecto_repos: [Anarchist.Repo]
+
+config :anarchist, Anarchist.Repo,
+  adapter: Ecto.Adapters.Postgres,
+  database: "aqua_diesel",
+  username: "drbawb",
+  hostname: "192.168.1.11",
+  port: "5432"
+
 config :yocingo, :token, System.get_env("TELEGRAM_TOKEN")
 
 # This configuration is loaded before any dependency and is restricted
