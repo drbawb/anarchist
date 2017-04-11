@@ -14,7 +14,7 @@ defmodule Anarchist.Mixfile do
   #
   # Type "mix help compile.app" for more information
   def application do
-    [applications: [:exirc, :logger, :slack, :timex, :yocingo],
+    [applications: [:ecto, :postgrex, :exirc, :logger, :slack, :timex, :yocingo],
      mod: {Anarchist, []}]
   end
 
@@ -28,7 +28,9 @@ defmodule Anarchist.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:ex_doc, "~> 0.14", only: :dev},
+    [{:ecto, "~> 2.0"},
+     {:postgrex, ">= 0.0.0"},
+     {:ex_doc, "~> 0.14", only: :dev},
      {:exirc, "~> 0.11"},
      {:poison, "~> 3.0"},
      {:httpoison, "~> 0.9"},
