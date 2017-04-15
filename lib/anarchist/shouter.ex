@@ -5,7 +5,7 @@ defmodule Anarchist.Shouter do
   @min_shout_length 10 # chosen arbitrarily by fair dice roll
 
   def start_link(opts \\ []) do
-    init_state = %{ shouts: MapSet.new }
+    init_state = %{ shouts: MapSet.new, last_shout: nil }
     GenServer.start_link(__MODULE__, init_state, opts)
   end
 
@@ -26,9 +26,45 @@ defmodule Anarchist.Shouter do
 
   # callbacks
 
+  def handle_call(:convert, _from, state) do
+    new_shouts = state.shouts |> Enum.map(fn shout ->
+      %{created_by: nil, created_at: nil, body: shout}
+    end) |> MapSet.new
+
+    {:reply, new_shouts, %{state | shouts: new_shouts}}
+  end 
+
+  def handle_call(:when, _from, state) do
+    if is_nil(state.last_shout) or is_nil(state.last_shout.created_at) do
+      {:reply, "Sorry, I'm not sure who said that :-(", state}
+    else
+      {:reply, "#{state.last_shout.created_by} said that at #{state.last_shout.created_at}", state}
+    end
+  end
+
+  def handle_call(:who, _from, state) do
+    if is_nil(state.last_shout) or is_nil(state.last_shout.created_by) do
+      {:reply, "Sorry, I'm not sure who said that :-(", state}
+    else
+      {:reply, "#{state.last_shout.created_by} said that at #{state.last_shout.created_at}", state}
+    end
+  end
+  
   def handle_call({:add, shout}, _from, state) do
     if valid_shout(shout) do
-      {:reply, :ok, %{state | shouts: MapSet.put(state.shouts, shout) }}
+      entry = %{created_by: nil, created_at: Timex.now, body: shout}
+
+      {:reply, :ok, %{state | shouts: MapSet.put(state.shouts, entry) }}
+    else
+      {:reply, {:error, "invalid shout, nil or not utf8?"}, state}
+    end
+  end
+
+  def handle_call({:add_detail, time, subj, body}, _from, state) do
+    if valid_shout(body) do
+      entry = %{created_at: time, created_by: subj, body: body}
+
+      {:reply, :ok, %{state | shouts: MapSet.put(state.shouts, entry) }}
     else
       {:reply, {:error, "invalid shout, nil or not utf8?"}, state}
     end
@@ -36,7 +72,7 @@ defmodule Anarchist.Shouter do
 
   def handle_call(:random, _from, state) do
     random_shout = state.shouts |> Enum.shuffle |> List.first
-    {:reply, random_shout, state}
+    {:reply, random_shout, %{state | last_shout: random_shout}}
   end
 
   def handle_call(:dump, _from, state) do
@@ -45,7 +81,7 @@ defmodule Anarchist.Shouter do
 
   def handle_call({:load, path}, _from, state) do
     Logger.debug "loading shout database :: #{inspect path}"
-    shouts = path |> File.read! |> Poison.decode! |> MapSet.new
+    shouts = path |> File.read! |> Poison.decode!(keys: :atoms) |> MapSet.new
 
     {:reply, :ok, %{state | shouts: shouts}}
   end

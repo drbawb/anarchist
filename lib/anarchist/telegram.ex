@@ -96,6 +96,8 @@ defmodule Anarchist.TGServer do
   !ron           :: wisdom of ron swanson
   !trump         :: print Trump's inanity
   !weather <zip> :: fetches a weather report
+  !when          :: detailed info about last shout
+  !who           :: detailed info about last shout
   <ALL CAPS>     :: teaches me about emotions
   ```
 
@@ -315,6 +317,14 @@ defmodule Anarchist.TGServer do
 
         Yocingo.send_message(room_id, reply)
 
+      "!who" -> 
+        response = GenServer.call(Shouter, :who)
+        Yocingo.send_message(room_id, response)
+
+      "!when" -> 
+        response = GenServer.call(Shouter, :when)
+        Yocingo.send_message(room_id, response)
+
       "!qcount" ->
         num_q = GenServer.call(Trivia, :count)
         Yocingo.send_message(room_id, "loaded #{num_q} questions")
@@ -353,6 +363,9 @@ defmodule Anarchist.TGServer do
 
   # stores shouts in the shout db, otherwise does nothing
   defp process_text(room_id, text, msg) do
+    IO.inspect msg
+
+
     GenServer.call Trivia, {:response, room_id, msg["chat"]["username"], text}
 
     # megumemes
@@ -370,13 +383,14 @@ defmodule Anarchist.TGServer do
     if Anarchist.Shouter.valid_shout(text) do
       Logger.debug "user shouted at me ..."
       random  = GenServer.call(Shouter, :random)
-      _store  = GenServer.call(Shouter, {:add, text})
+      srcname = msg["from"]["username"] || msg["from"]["first_name"]
+      _store  = GenServer.call(Shouter, {:add_detail, Timex.now, srcname, text})
 
       cond do
-        String.contains?(random, "GROPING") ->
-          Yocingo.send_photo(room_id, "db/whole-hearted-groping.jpg", random)
+        String.contains?(random.body, "GROPING") ->
+          Yocingo.send_photo(room_id, "db/whole-hearted-groping.jpg", random.body)
 
-        true -> Yocingo.send_message(room_id, random)
+        true -> Yocingo.send_message(room_id, random.body)
       end
 
     end
